@@ -36,6 +36,7 @@ This repository consumes both foundations via data sources. It owns the workload
 
 ## Architecture Overview
 
+```
 ┌─────────────────────────────────────────────────────────────┐
 │ stratum-platform │
 │ │
@@ -56,6 +57,7 @@ This repository consumes both foundations via data sources. It owns the workload
 └──────────────────────┘ └───────────────────────┘
 Azure AWS
 (UK primary estate) (US acquired estate)
+```
 
 No Terraform state is shared between repositories. This decision is
 documented in ADR-001.
@@ -64,6 +66,7 @@ documented in ADR-001.
 
 ## Repository Structure
 
+```
 stratum-platform/
 ├── .github/
 │ └── workflows/ ← CI/CD pipelines (Phase 1)
@@ -81,6 +84,7 @@ stratum-platform/
 ├── architecture/ ← Diagrams (Mermaid / draw.io)
 ├── CONTRIBUTING.md ← Engineering standards
 └── README.md
+```
 
 ---
 
