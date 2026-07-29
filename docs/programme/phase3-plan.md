@@ -17,12 +17,15 @@ visibility into underlying cloud resource IDs.
 **Focus:** Define the Terraform data source schemas that discover
 and expose upstream boundaries from both landing zones.
 
+```
 | #   | Task                                                                                                                                         | Hours | Output                            |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
 | 1   | Write Azure data source module consuming azure-landing-zone outputs — VNet IDs, subnet IDs, resource group names, Log Analytics workspace ID | 3     | `terraform/azure/data-sources.tf` |
 | 2   | Write AWS data source module consuming aws-landing-zone outputs — VPC ID, subnet IDs, ECR repository URL, SNS topic ARN                      | 3     | `terraform/aws/data-sources.tf`   |
 | 3   | Write ADR-002 — cross-cloud data source strategy, why resource IDs are never hardcoded, how the abstraction layer works                      | 2     | `docs/adr/ADR-002.md`             |
 | 4   | Write Azure vs AWS comparison document — resource group vs VPC, management groups vs AWS Organizations                                       | 2     | `docs/comparisons/governance.md`  |
+
+```
 
 **Acceptance criteria:**
 
@@ -57,11 +60,14 @@ r cloud by providing: environment name, cloud target, and team name
 environment/` |
 pipeline.
 
+```
 | #   | Task                                                                                                     | Hours | Output                                                     |
 | --- | -------------------------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------- | --- | ---------------------------------------------------------- | --- | ------------------------------------------------------------------------------------ | --- | -------------------------------------- |
 | 1   | Design the workflow architecture — how Azure and AWS authe                                               | 1     | Design the workflow architecture — how Azure and AWS authe | 1   | Design the workflow architecture — how Azure and AWS authe | 1   | Desian across Azure and AWS modules, OIDC for both clouds, plan output to PR comment | 4   | `.github/workflows/terraform-plan.yml` |
 | 3   | Build `terraform-apply.yml` — sequential apply in dependency order across both clouds                    | 2     | `.github/workflows/terraform-apply.yml`                    |
 | 4   | Write ADR-003 — unified pipeline design decisions, why matrix strategy, how OIDC coexists for two clouds | 2     | `docs/adr/ADR-003.md`                                      |
+
+```
 
 **Acceptance criteria:**
 
@@ -77,12 +83,15 @@ pipeline.
 automated pipeline. GitOps-driven multi-cloud terraform plan outputs
 in pull requests.
 
+```
 | #   | Task                                                                                                                                | Hours | Output                           |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------- |
 | 1   | Integrate stratum-environment module into the CI pipeline — automatic plan on PR touching environment definitions                   | 3     | Pipeline integration             |
 | 2   | Build module registry for stratum-platform — `terraform-modules.json` covering Azure and AWS modules with ci_enabled classification | 2     | `.github/terraform-modules.json` |
 | 3   | Implement drift detection across both clouds — weekly scheduled run covering all enabled modules                                    | 3     | `drift-detection.yml`            |
 | 4   | Write comparison document — Azure Pipelines vs GitHub Actions, how the unified pipeline pattern differs from cloud-native CI        | 2     | `docs/comparisons/ci-cd.md`      |
+
+```
 
 **Acceptance criteria:**
 
