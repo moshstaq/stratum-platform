@@ -1,0 +1,28 @@
+{
+  "modules": [
+    {
+      "name": "azure-data-contracts",
+      "path": "terraform/azure",
+      "cloud": "azure",
+      "ci_enabled": true
+    },
+    {
+      "name": "aws-data-contracts",
+      "path": "terraform/aws",
+      "cloud": "aws",
+      "ci_enabled": true
+    },
+    {
+      "name": "aws-environment",
+      "path": "terraform/aws/environment",
+      "cloud": "aws",
+      "ci_enabled": false
+    },
+    {
+      "name": "azure-environment",
+      "path": "terraform/azure/environment",
+      "cloud": "azure",
+      "ci_enabled": false
+    }
+  ]
+}
