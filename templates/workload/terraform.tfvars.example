@@ -1,0 +1,4 @@
+# Copy this file to terraform.tfvars and fill in your values
+environment_name = "my-service"
+team_name        = "my-team"
+environment_tier = "dev"

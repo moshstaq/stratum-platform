@@ -35,8 +35,4 @@ variable "location" {
   default     = "eastus2"
 }
 
-variable "subscription_id" {
-  description = "Azure subscription ID"
-  type        = string
-  sensitive   = true
-}
+
