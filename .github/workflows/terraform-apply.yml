@@ -1,126 +1,165 @@
 name: Terraform Apply
 
 on:
-    push:
-        branches: [main]
-        paths:
-            - "terraform/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
 
 permissions:
-    id-token: write
-    contents: read
+  id-token: write
+  contents: read
 
 env:
-    AWS_REGION: us-east-1
-    TF_VERSION: 1.5.7
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.5.7
 
 jobs:
-    detect-changes:
-        name: Detect Modules
-        runs-on: ubuntu-latest
-        outputs:
-            matrix: ${{ steps.set-matrix.outputs.matrix }}
-            has_changes: ${{ steps.set-matrix.outputs.has_changes }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+  detect-changes:
+    name: Detect Modules
+    runs-on: ubuntu-latest
+    outputs:
+      azure_matrix: ${{ steps.set-matrix.outputs.azure_matrix }}
+      aws_matrix: ${{ steps.set-matrix.outputs.aws_matrix }}
+      has_azure: ${{ steps.set-matrix.outputs.has_azure }}
+      has_aws: ${{ steps.set-matrix.outputs.has_aws }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Determine modules
-              id: set-matrix
-              run: |
-                  MODULES=$(cat .github/terraform-modules.json)
-                  AFFECTED=$(echo "$MODULES" | jq -c \
-                    '[.modules[] | select(.ci_enabled == true)]')
+      - name: Determine modules
+        id: set-matrix
+        run: |
+          MODULES=$(cat .github/terraform-modules.json)
 
-                  if [ "$AFFECTED" == "[]" ]; then
-                    echo "has_changes=false" >> $GITHUB_OUTPUT
-                    echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
-                  else
-                    echo "has_changes=true" >> $GITHUB_OUTPUT
-                    echo "matrix={\"include\":$AFFECTED}" >> $GITHUB_OUTPUT
-                  fi
+          AZURE=$(echo "$MODULES" | jq -c \
+            '[.modules[] | select(.ci_enabled == true and .cloud == "azure")]')
+          AWS=$(echo "$MODULES" | jq -c \
+            '[.modules[] | select(.ci_enabled == true and .cloud == "aws")]')
 
-    apply:
-        name: Apply - ${{ matrix.name }}
-        needs: detect-changes
-        if: needs.detect-changes.outputs.has_changes == 'true'
-        runs-on: ubuntu-latest
-        environment: production
-        strategy:
-            fail-fast: false
-            max-parallel: 1
-            matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+          if [ "$AZURE" == "[]" ]; then
+            echo "has_azure=false" >> $GITHUB_OUTPUT
+            echo "azure_matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+          else
+            echo "has_azure=true" >> $GITHUB_OUTPUT
+            echo "azure_matrix={\"include\":$AZURE}" >> $GITHUB_OUTPUT
+          fi
 
-            # ── Azure Authentication ───────────────────────────────────────────
-            - name: Azure Login
-              if: matrix.cloud == 'azure'
-              uses: azure/login@v2
-              with:
-                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
-                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          if [ "$AWS" == "[]" ]; then
+            echo "has_aws=false" >> $GITHUB_OUTPUT
+            echo "aws_matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+          else
+            echo "has_aws=true" >> $GITHUB_OUTPUT
+            echo "aws_matrix={\"include\":$AWS}" >> $GITHUB_OUTPUT
+          fi
 
-            # ── AWS Authentication ─────────────────────────────────────────────
-            - name: Configure AWS Credentials
-              if: matrix.cloud == 'aws'
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                  role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-                  role-session-name: GitHubActions
-                  aws-region: ${{ env.AWS_REGION }}
+  apply-azure:
+    name: Azure - ${{ matrix.name }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_azure == 'true'
+    runs-on: ubuntu-latest
+    environment: azure-production
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJson(needs.detect-changes.outputs.azure_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Assume Terraform Role
-              if: matrix.cloud == 'aws'
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                  role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE }}
-                  role-session-name: Terraform
-                  aws-region: ${{ env.AWS_REGION }}
-                  role-chaining: true
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-            - name: Setup Terraform
-              uses: hashicorp/setup-terraform@v3
-              with:
-                  terraform_version: ${{ env.TF_VERSION }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
-            - name: Terraform Init
-              working-directory: ${{ matrix.path }}
-              env:
-                  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-                  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-                  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-                  ARM_USE_OIDC: true
-                  ARM_USE_AZUREAD: true
-              run: terraform init
+      - name: Terraform Init
+        working-directory: ${{ matrix.path }}
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+          ARM_USE_AZUREAD: true
+        run: terraform init
 
-            - name: Terraform Plan
-              working-directory: ${{ matrix.path }}
-              env:
-                  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-                  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-                  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-                  ARM_USE_OIDC: true
-                  ARM_USE_AZUREAD: true
-              run: terraform plan -no-color -input=false -out=tfplan
+      - name: Terraform Plan
+        working-directory: ${{ matrix.path }}
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+          ARM_USE_AZUREAD: true
+        run: terraform plan -no-color -input=false -out=tfplan
 
-            - name: Terraform Apply
-              working-directory: ${{ matrix.path }}
-              env:
-                  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-                  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-                  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-                  ARM_USE_OIDC: true
-                  ARM_USE_AZUREAD: true
-              run: terraform apply -input=false tfplan
+      - name: Terraform Apply
+        working-directory: ${{ matrix.path }}
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+          ARM_USE_AZUREAD: true
+        run: terraform apply -input=false tfplan
 
-    no-changes:
-        name: No CI-Enabled Modules
-        needs: detect-changes
-        if: needs.detect-changes.outputs.has_changes == 'false'
-        runs-on: ubuntu-latest
-        steps:
-            - name: Report
-              run: echo "No CI-enabled modules found"
+  apply-aws:
+    name: AWS - ${{ matrix.name }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_aws == 'true'
+    runs-on: ubuntu-latest
+    environment: aws-production
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJson(needs.detect-changes.outputs.aws_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume Terraform Role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE }}
+          role-session-name: Terraform
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ${{ matrix.path }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ matrix.path }}
+        run: terraform plan -no-color -input=false -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ${{ matrix.path }}
+        run: terraform apply -input=false tfplan
+
+  no-changes:
+    name: No CI-Enabled Modules
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_azure == 'false' && needs.detect-changes.outputs.has_aws == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: echo "No CI-enabled modules found"
