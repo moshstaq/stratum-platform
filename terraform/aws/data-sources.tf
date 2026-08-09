@@ -59,3 +59,4 @@ data "aws_secretsmanager_secret" "app_config" {
   name = "stratum/platform/app-config"
 }
 
+
