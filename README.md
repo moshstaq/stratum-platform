@@ -1,177 +1,331 @@
 # stratum-platform
 
-Multi-cloud platform engineering programme — Stratum Retail Group.
+A multi-cloud internal developer platform that consumes Azure and AWS landing zones, enabling developers to deploy applications with policy-compliant resources into both clouds using only four inputs. No cloud expertise required. No resource IDs visible. The platform handles the rest.
+
+[![Terraform](https://img.shields.io/badge/Terraform-1.5+-623CE4?logo=terraform)](https://terraform.io)
+[![Azure](https://img.shields.io/badge/Azure-0078D4?logo=microsoft-azure)](https://azure.microsoft.com)
+[![AWS](https://img.shields.io/badge/AWS-FF9900?logo=amazon-aws)](https://aws.amazon.com)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=github-actions)](https://github.com/features/actions)
 
 ---
 
-## The Business Problem
+## The Problem
 
-Stratum Retail Group is a UK-based retail organisation running its primary technology estate on Azure. Following the acquisition of a US-based retail business operating on AWS, the platform team inherited two independent cloud environments with no shared engineering standards,
-no unified observability, and no ability to scale coherently across both.
+Stratum Retail Group is a UK-based retailer that acquired a US business running on AWS. The acquisition created two
+independent cloud estates with no shared standards, no unified observability, and no way for developers to deploy services consistently across both.
 
-The immediate operational problems are visible and costly:
+During flash sales, the US website crashes under traffic spikes because there is no elastic scaling infrastructure. When something breaks, there is no visibility into what failed or why Azure and AWS each have siloed monitoring that requires manual correlation across clouds.
 
-**Unpredictable traffic spikes during flash sales cause the US website to crash and lose revenue.** The acquired business has no elastic scaling infrastructure. When demand exceeds capacity, the site goes down. There is no mechanism to absorb the spike, no automatic recovery, and no post-incident visibility into what failed and why.
+Developers deploying into either estate need cloud-specific expertise, direct knowledge of VPC IDs and subnet CIDRs, and manual configuration of identity and access. There is no standard path to production.
 
-**No visibility into system errors or performance bottlenecks across either estate.**
-Azure and AWS each have independent, siloed monitoring. There is no unified view of platform health. When something goes wrong, the engineering team is reactive rather than informed. Correlating an incident across two clouds requires manual effort that slows response time and increases blast radius.
+## The Solution
 
-The platform team's mandate is to establish production-grade foundations in both environments, define the engineering standards that govern both, and connect them into a coherent multi-cloud platform that makes these problems solvable.
+stratum-platform sits between the two cloud foundations and provides a single developer interface for both. A developer provides four inputs:
 
----
-
-## What This Repository Is
-
-`stratum-platform` is the multi-cloud consumer repository. It sits above two independently managed platform foundations:
-
-- [`azure-landing-zone`](https://github.com/moshstaq/azure-landing-zone)
-  — hub-spoke networking, governance, observability, and identity for
-  the UK estate
-- [`aws-landing-zone`](https://github.com/moshstaq/aws-landing-zone)
-  — VPC, IAM, compute, and observability for the US estate (Phase 1)
-
-This repository consumes both foundations via data sources. It owns the workload layer: AKS and EKS cluster configuration, application infrastructure, cross-cloud integration modules, and unified pipelines. It never duplicates platform state — all cross-repository references use `azurerm` and `aws` data sources exclusively.
-
----
-
-## Architecture Overview
-
+```hcl
+environment_name = "checkout-service"
+team_name        = "commerce"
+environment_tier = "dev"
+cloud            = "aws"
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ stratum-platform │
-│ │
-│ terraform/azure/ │ terraform/aws/ │
-│ AKS, app layer │ EKS, app layer │
-│ Azure workloads │ AWS workloads │
-└──────────┬────────────┴──────────────┬──────────────────────┘
-│ azurerm data sources │ aws data sources
-│ (no remote state) │ (no remote state)
-▼ ▼
-┌──────────────────────┐ ┌───────────────────────┐
-│ azure-landing-zone │ │ aws-landing-zone │
+
+The platform provisions a complete, policy-compliant workload boundary: identity, networking, storage, encryption, tagging, observability, and lifecycle management. Without exposing a single cloud resource identifier.
+
+---
+
+## Architecture
+
+                Developer
+                   │
+              4 inputs only
+                   │
+                   ▼
+        ┌─────────────────────┐
+        │  stratum-platform   │
+        │                     │
+        │  Golden Path        │
+        │  Environment Module │
+        │  Unified Pipeline   │
+        └────────┬────────────┘
+                 │
+        Data sources only
+        No remote state
+                 │
+     ┌───────────┴───────────┐
+     │                       │
+     ▼                       ▼
+
+┌──────────────────┐ ┌──────────────────┐
+│ azure-landing-zone│ │ aws-landing-zone │
 │ │ │ │
-│ Hub-spoke network │ │ VPC, subnets │
-│ Azure Policy │ │ IAM, OIDC │
+│ Hub-spoke VNet │ │ VPC + subnets │
+│ AKS + workload ID│ │ EKS + IRSA │
 │ Log Analytics │ │ CloudWatch │
-│ OIDC identity │ │ CloudTrail │
-└──────────────────────┘ └───────────────────────┘
-Azure AWS
-(UK primary estate) (US acquired estate)
-```
+│ Azure Policy │ │ CloudTrail │
+│ Key Vault │ │ Secrets Manager │
+│ ACR │ │ ECR │
+└──────────────────┘ └──────────────────┘
+Azure (UK) AWS (US)
 
-No Terraform state is shared between repositories. This decision is
-documented in ADR-001.
+No Terraform state is shared between repositories. All cross-repository references use provider-native data sources
+exclusively. This decision is documented in ADR-001.
+
+---
+
+## What the Platform Provides
+
+For every workload environment, the platform automatically
+provisions and enforces:
+
+| Concern       | AWS                                         | Azure                                |
+| ------------- | ------------------------------------------- | ------------------------------------ |
+| Identity      | IAM role with least-privilege policy        | User Assigned Managed Identity       |
+| Network       | Security group, default deny inbound        | NSG (via landing zone)               |
+| Storage       | S3 bucket, encrypted, lifecycle rules       | Storage Account (via landing zone)   |
+| Tagging       | Six tags derived from three inputs          | Six tags derived from three inputs   |
+| Retention     | Tier-based: dev 30d, staging 90d, prod 365d | Tier-based: matching AWS             |
+| Encryption    | AES256 at rest on all storage               | AES256 at rest on all storage        |
+| Public access | Blocked on all storage                      | Blocked on all storage               |
+| Observability | Automatic via platform log groups           | Diagnostic settings to Log Analytics |
+
+## What Developers Do Not Touch
+
+The following are handled by the platform and never visible
+in developer configuration:
+
+- VPC IDs, VNet IDs, subnet CIDRs
+- IAM trust policies, RBAC role assignments
+- Encryption key configuration
+- Route table associations
+- Public access block settings
+- Lifecycle policy details
+- Cloud provider authentication
 
 ---
 
 ## Repository Structure
 
-```
 stratum-platform/
 ├── .github/
-│ └── workflows/ ← CI/CD pipelines (Phase 1)
+│ ├── terraform-modules.json
+│ └── workflows/
+│ ├── terraform-plan.yml ← unified plan, both clouds
+│ ├── terraform-apply.yml ← split apply by cloud
+│ └── drift-detection.yml ← weekly drift check
 │
 ├── terraform/
-│ ├── azure/ ← Azure workload modules
-│ └── aws/ ← AWS workload modules
+│ ├── azure/
+│ │ ├── data-sources.tf ← Azure landing zone contracts
+│ │ ├── outputs.tf
+│ │ ├── providers.tf
+│ │ └── environment/ ← Azure workload module
+│ └── aws/
+│ ├── data-sources.tf ← AWS permanent contracts
+│ ├── outputs.tf
+│ ├── providers.tf
+│ ├── ephemeral/ ← session-scoped data sources
+│ └── environment/ ← AWS workload module
+│
+├── templates/
+│ └── workload/ ← Golden Path template
 │
 ├── docs/
 │ ├── adr/ ← Architecture Decision Records
-│ ├── runbooks/ ← Operational procedures
+│ ├── runbooks/ ← Operational runbooks
 │ ├── comparisons/ ← Azure vs AWS service mapping
-│ └── programme/ ← Programme governance documents
+│ └── programme/ ← Programme governance
 │
-├── architecture/ ← Diagrams (Mermaid / draw.io)
-├── CONTRIBUTING.md ← Engineering standards
+├── CONTRIBUTING.md
 └── README.md
+
+---
+
+## Golden Path — Developer Onboarding
+
+A developer deploying their first service follows three steps:
+
+**1. Copy the template**
+
+```bash
+cp -r templates/workload terraform/aws/workloads/my-service
 ```
+
+**2. Set three values**
+
+```hcl
+environment_name = "my-service"
+team_name        = "my-team"
+environment_tier = "dev"
+```
+
+**3. Open a PR**
+
+The unified pipeline plans the environment across the target cloud and posts the output to the PR. Merge triggers apply.
+
+Full guide: `docs/runbooks/golden-path.md`
+
+---
+
+## CI/CD Pipeline
+
+### Plan — unified, both clouds
+
+A single workflow authenticates to Azure via OIDC and AWS via OIDC role chaining. The matrix reads from `terraform-modules.json` and routes each module to its cloud authentication path using the `cloud` attribute.
+
+### Apply — split by cloud
+
+Azure modules apply through the `azure-production` GitHub environment. AWS modules apply through `aws-production`. Each environment scopes the OIDC subject claim to its cloud-specific federated credential. Failure in one cloud does not block the other.
+
+### Drift Detection
+
+Weekly scheduled plan across all CI-enabled modules. Non-empty plans automatically open a GitHub issue with the plan output and drift label.
+
+### Authentication
+
+Azure:
+GitHub Actions → OIDC → Azure AD → sp-stratum-platform
+No stored credentials. ARM_USE_OIDC: true.
+
+AWS:
+GitHub Actions → OIDC → GitHub Actions role
+→ sts:AssumeRole → Terraform provisioning role
+No stored credentials. Two-step role chaining.
+
+Every identity is scoped to consumer permissions — read-only on platform resources, write on workload boundaries only. stratum-platform cannot modify either landing zone.
+
+---
+
+## Data Contracts
+
+stratum-platform discovers upstream platform boundaries via provider-native data sources. No `terraform_remote_state` is used anywhere — this repository is public and remote state would expose sensitive infrastructure details.
+
+**Permanent data sources** — always available regardless of
+session state:
+
+| Azure                   | AWS                     |
+| ----------------------- | ----------------------- |
+| Resource groups         | VPC and subnets         |
+| VNets and subnets       | ECR repository          |
+| Log Analytics workspace | SNS topic               |
+| Action group            | CloudWatch log groups   |
+|                         | Secrets Manager secrets |
+
+**Ephemeral data sources** — available only when session-scoped resources are running:
+
+| AWS         |
+| ----------- |
+| EKS cluster |
+| IRSA roles  |
+
+This separation is documented in ADR-002.
+
+---
+
+## Environment Module Interface
+
+Both clouds accept identical developer inputs:
+
+```hcl
+module "environment" {
+  source = "../../environment"
+
+  environment_name = "my-service"
+  team_name        = "my-team"
+  environment_tier = "dev"
+}
+```
+
+Input validation rejects non-compliant values at plan time:
+
+environment_name: lowercase, starts with letter, 3-21 chars
+team_name: lowercase, starts with letter, 2-21 chars
+environment_tier: dev | staging | prod
+
+Tier determines resource sizing and retention automatically:
+
+| Tier    | Instance Type | Retention | Use Case                  |
+| ------- | ------------- | --------- | ------------------------- |
+| dev     | t3.micro      | 30 days   | Development and testing   |
+| staging | t3.small      | 90 days   | Pre-production validation |
+| prod    | t3.medium     | 365 days  | Production workloads      |
+
+Module design decisions documented in ADR-003.
 
 ---
 
 ## Programme Structure
 
-Project Stratum is structured across six phases. Each phase has a defined objective, a set of specific tasks, and a measurable exit gate.
-A phase is not complete until its exit gate is passed.
+Project Stratum is structured across six phases:
 
-| Phase | Title                        | Focus                               | Weeks | Status          |
-| ----- | ---------------------------- | ----------------------------------- | ----- | --------------- |
-| 0     | Foundation Verification      | Azure audit, stratum-platform setup | 1–2   | **In Progress** |
-| 1     | AWS Foundations              | IAM, VPC, EC2, S3, ALB, ASG         | 3–8   | Not Started     |
-| 2     | Container Platforms          | EKS, ECR, IRSA, AKS alignment       | 9–14  | Not Started     |
-| 3     | Multi-Cloud Integration      | Shared modules, unified pipeline    | 15–20 | Not Started     |
-| 4     | Application Layer            | FastAPI workload on AKS and EKS     | 21–26 | Not Started     |
-| 5     | Resilience and Observability | DR, unified dashboards, chaos       | 27–32 | Not Started     |
-| 6     | Production Readiness         | Security review, cost optimisation  | 33–36 | Not Started     |
+| Phase | Title                        | Status      |
+| ----- | ---------------------------- | ----------- |
+| 0     | Foundation Verification      | ✅ Complete |
+| 1     | AWS Foundations              | ✅ Complete |
+| 2     | Container Platforms          | ✅ Complete |
+| 3     | Multi-Cloud Integration      | ✅ Complete |
+| 4     | Application Layer            | Not Started |
+| 5     | Resilience and Observability | Not Started |
+| 6     | Production Readiness         | Not Started |
 
 ---
 
 ## Engineering Standards
 
-These standards apply across all three repositories from the first
-commit.
+Documented in [CONTRIBUTING.md](CONTRIBUTING.md):
 
-**Infrastructure:**
-all resources managed by Terraform, providers pinned to exact versions, no hardcoded values, outputs defined for everything consumed externally.
-
-**Version control:**
-main is protected, all work on feature branches, PRs required for merge, commit messages follow Conventional Commits format, each PR addresses a single concern.
-
-**Documentation:**
-every architectural decision has an ADR committed before or alongside the implementation, READMEs kept current, runbooks written before each phase exit gate.
-
-**Security:**
-OIDC authentication for all CI/CD, no long-lived credentials anywhere, secrets in Secrets Manager or Key Vault only, least privilege applied and justified in the relevant ADR.
-
-**Cost:**
-every service deployment includes a cost estimate, resources torn down between working sessions unless persistence is required, actual spend reviewed monthly against estimate.
-
-Full detail in [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
-## Architecture Decision Records
-
-| ADR     | Decision                                                 | Repository       |
-| ------- | -------------------------------------------------------- | ---------------- |
-| ADR-001 | Data sources over remote state for cross-repo references | stratum-platform |
-
-Further ADRs are added as decisions are made. ADRs in `azure-landing-zone` and `aws-landing-zone` govern decisions within those foundations.
-
----
-
-## Certification
-
-AWS Certified Solutions Architect – Associate (SAA-C03) coverage is embedded in Phase 1 and Phase 2. The exam is not sat until Phase 2 is complete. Study is done by building, not by watching courses.
-
-| Domain                        | Weight | Phase      |
-| ----------------------------- | ------ | ---------- |
-| Secure Architectures          | 30%    | Phase 1    |
-| Resilient Architectures       | 26%    | Phase 1    |
-| High-Performing Architectures | 24%    | Phase 2    |
-| Cost-Optimised Architectures  | 20%    | All phases |
+- All resources managed by Terraform, providers pinned to
+  exact versions
+- Main branch protected, all work on feature branches, PRs
+  required
+- Conventional Commits format for all commit messages
+- ADRs committed before or alongside every decision
+- OIDC authentication everywhere, no stored credentials
+- Cost management discipline: session-scoped resources
+  destroyed between sessions
 
 ---
 
 ## Cost Strategy
 
-The programme runs on a £10/month budget across both clouds. Persistent infrastructure is the constraint — not validation. Services that carry significant monthly cost are provisioned for validation within a working session, confirmed against the architecture, documented, and destroyed. The implementation pattern is proven; the persistent cost is not carried.
+The programme runs on a £10/month budget across both clouds. Services carrying significant hourly cost are deployed for validation sessions and destroyed between them.
 
-| Service                  | Approach                              | Monthly Cost if Persistent |
-| ------------------------ | ------------------------------------- | -------------------------- |
-| Single NAT Gateway (AWS) | Persistent — acceptable at ~£3/month  | ~£30/month multi-AZ        |
-| Azure Firewall           | Deploy, validate, destroy per session | ~£150/month                |
-| Private DNS Zones        | On-demand, destroyed post-validation  | Variable                   |
+| Resource            | Approach                                  |
+| ------------------- | ----------------------------------------- |
+| NAT Gateway         | Toggle via `nat_gateway_enabled` variable |
+| EKS cluster         | Destroy between sessions (~$0.19/hour)    |
+| ALB + ASG           | Destroy between sessions (~$0.06/hour)    |
+| EC2 instances       | Stop between sessions                     |
+| All other resources | Permanent, minimal cost                   |
 
-Actual spend is reviewed monthly. Variance from estimate is documented and explained.
+---
+
+## Architecture Decision Records
+
+| ADR     | Decision                                                         |
+| ------- | ---------------------------------------------------------------- |
+| ADR-001 | Data sources over remote state for cross-repo references         |
+| ADR-002 | Cross-cloud data source architecture with ephemeral separation   |
+| ADR-003 | Environment module design — unified interface, tier-based config |
+| ADR-004 | Phase 3 engineering retrospective                                |
+
+---
+
+## Azure vs AWS Comparisons
+
+| Document           | Coverage                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| Phase 1 comparison | Storage, networking, identity, observability, container registry, secrets, load balancing, scaling |
+
+Full documents in `docs/comparisons/`.
 
 ---
 
 ## Related Repositories
 
-| Repository                                                           | Purpose                   | Status  |
-| -------------------------------------------------------------------- | ------------------------- | ------- |
-| [azure-landing-zone](https://github.com/moshstaq/azure-landing-zone) | Azure platform foundation | Active  |
-| [aws-landing-zone](https://github.com/moshstaq/aws-landing-zone)     | AWS platform foundation   | Phase 1 |
+| Repository                                                           | Purpose                               |
+| -------------------------------------------------------------------- | ------------------------------------- |
+| [azure-landing-zone](https://github.com/moshstaq/azure-landing-zone) | Azure platform foundation — UK estate |
+| [aws-landing-zone](https://github.com/moshstaq/aws-landing-zone)     | AWS platform foundation — US estate   |
 
 ---
 
