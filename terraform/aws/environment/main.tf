@@ -151,3 +151,48 @@ resource "aws_s3_bucket_lifecycle_configuration" "workload" {
     }
   }
 }
+
+
+# ── ECR Repository — Workload Container Registry ─────────────────────────────
+# Each environment gets its own container registry.
+# Developer does not configure scanning, encryption, or lifecycle —
+# platform enforces all three automatically.
+# Same pattern as the S3 bucket — provisioned from the environment name.
+
+resource "aws_ecr_repository" "workload" {
+  name                 = local.prefix
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${local.prefix}-ecr"
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "workload" {
+  repository = aws_ecr_repository.workload.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Retain only the last 10 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
