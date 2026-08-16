@@ -32,3 +32,8 @@ output "environment_tier" {
   description = "Environment tier"
   value       = var.environment_tier
 }
+
+output "ecr_repository_url" {
+  description = "URL of the workload ECR repository"
+  value       = aws_ecr_repository.workload.repository_url
+}
