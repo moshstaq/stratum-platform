@@ -652,3 +652,19 @@ declaring the incident resolved:
 | NAT Gateway failure     | 3-5 minutes            |
 | EKS cluster failure     | 15-20 minutes          |
 | Full platform restore   | 20-25 minutes          |
+
+## Known Issues
+
+### EIP release fails after NAT Gateway destroy
+
+When the NAT Gateway is destroyed, the associated EIP
+occasionally retains a reference to a deleted network
+interface. Terraform cannot release the EIP cleanly.
+
+**Fix:**
+
+```bash
+terraform state rm aws_eip.nat
+aws ec2 release-address --allocation-id <eip-alloc-id>
+terraform plan  # Should show no changes
+```
