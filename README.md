@@ -1,6 +1,6 @@
 # stratum-platform
 
-A multi-cloud internal developer platform that consumes Azure and AWS landing zones, enabling developers to deploy applications with policy-compliant resources into both clouds using only four inputs. No cloud expertise required. No resource IDs visible. The platform handles the rest.
+A multi-cloud internal developer platform that consumes Azure and AWS landing zones, enabling developers to deploy applications with policy-compliant resources into both clouds using only four inputs. No cloud expertise required. No resource IDs visible. The platform handles the rest. Stratum Retail Group is a fictional company.
 
 [![Terraform](https://img.shields.io/badge/Terraform-1.5+-623CE4?logo=terraform)](https://terraform.io)
 [![Azure](https://img.shields.io/badge/Azure-0078D4?logo=microsoft-azure)](https://azure.microsoft.com)
@@ -11,8 +11,7 @@ A multi-cloud internal developer platform that consumes Azure and AWS landing zo
 
 ## The Problem
 
-Stratum Retail Group is a UK-based retailer that acquired a US business running on AWS. The acquisition created two
-independent cloud estates with no shared standards, no unified observability, and no way for developers to deploy services consistently across both.
+Stratum Retail Group is a UK-based retailer that acquired a US business running on AWS. The acquisition created two independent cloud estates with no shared standards, no unified observability, and no way for developers to deploy services consistently across both.
 
 During flash sales, the US website crashes under traffic spikes because there is no elastic scaling infrastructure. When something breaks, there is no visibility into what failed or why Azure and AWS each have siloed monitoring that requires manual correlation across clouds.
 
@@ -183,13 +182,10 @@ Weekly scheduled plan across all CI-enabled modules. Non-empty plans automatical
 ### Authentication
 
 Azure:
-GitHub Actions → OIDC → Azure AD → sp-stratum-platform
-No stored credentials. ARM_USE_OIDC: true.
+GitHub Actions → OIDC → Azure AD → sp-stratum-platform. No stored credentials. ARM_USE_OIDC: true.
 
 AWS:
-GitHub Actions → OIDC → GitHub Actions role
-→ sts:AssumeRole → Terraform provisioning role
-No stored credentials. Two-step role chaining.
+GitHub Actions → OIDC → GitHub Actions role → sts:AssumeRole → Terraform provisioning role. No stored credentials. Two-step role chaining.
 
 Every identity is scoped to consumer permissions — read-only on platform resources, write on workload boundaries only. stratum-platform cannot modify either landing zone.
 
@@ -197,7 +193,9 @@ Every identity is scoped to consumer permissions — read-only on platform resou
 
 ## Data Contracts
 
-stratum-platform discovers upstream platform boundaries via provider-native data sources. No `terraform_remote_state` is used anywhere — this repository is public and remote state would expose sensitive infrastructure details.
+stratum-platform discovers upstream platform boundaries via provider-native data sources. No `terraform_remote_state` is used in this repository, for cross-repository or cross-module references — stratum-platform is public, and a state file holds every attribute of every managed resource including values marked sensitive.
+
+Remote state is not rejected outright. ADR-001 sets the boundary: it remains appropriate inside a single repository where state access is controlled and the consumer is not public, which is how azure-landing-zone wires its own tiers together.
 
 **Permanent data sources** — always available regardless of
 session state:
@@ -312,9 +310,9 @@ The programme runs on a £10/month budget across both clouds. Services carrying 
 
 ## Azure vs AWS Comparisons
 
-| Document           | Coverage                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------- |
-| Phase 1 comparison | Storage, networking, identity, observability, container registry, secrets, load balancing, scaling |
+## Document Coverag
+
+Phase 1 comparison Storage, networking, identity, observability, container registry, secrets, load balancing, scaling
 
 Full documents in `docs/comparisons/`.
 
@@ -322,10 +320,11 @@ Full documents in `docs/comparisons/`.
 
 ## Related Repositories
 
-| Repository                                                           | Purpose                               |
-| -------------------------------------------------------------------- | ------------------------------------- |
-| [azure-landing-zone](https://github.com/moshstaq/azure-landing-zone) | Azure platform foundation — UK estate |
-| [aws-landing-zone](https://github.com/moshstaq/aws-landing-zone)     | AWS platform foundation — US estate   |
+| Repository           | Purpose                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| [stratum-workload]   | Two FastApi services provisioned through the golden path on EKS — Phase 4 |
+| [azure-landing-zone] | Azure platform foundation — UK estate                                     |
+| [aws-landing-zone]   | AWS platform foundation — US estate                                       |
 
 ---
 
