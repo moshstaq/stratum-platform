@@ -36,12 +36,7 @@ locals {
     Platform    = "aws"
   }
 
-  # Tier-based sizing — platform enforces right-sizing per tier
-  instance_type = {
-    dev     = "t3.micro"
-    staging = "t3.small"
-    prod    = "t3.medium"
-  }[var.environment_tier]
+
 }
 
 # ── IAM Role — Workload Identity ──────────────────────────────────────────────
