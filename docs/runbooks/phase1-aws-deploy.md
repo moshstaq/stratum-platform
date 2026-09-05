@@ -170,7 +170,7 @@ terraform apply
 **Expected outputs:**
 vpc_id = "vpc-0ac88fd62d76f8714"
 public_subnet_ids = ["subnet-0e2ce1b3175d839e9", "subnet-00389007bbddc5c4f"]
-private_subnet_ids = ["subnet-0e6cb1b551d9620dc", "subnet-0266841518cb50d97"]
+private_subnet_ids = ["subnet-0b4277a18cb885807", "subnet-0266841518cb50d97"]
 
 ---
 
