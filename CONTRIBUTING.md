@@ -197,3 +197,9 @@ a bug.
   `.gitignore` enforced.
 - Public access disabled on all storage by default. Exceptions
   require explicit justification documented in the relevant ADR.
+
+> Do not run terraform apply from uncommitted code. A resource
+> configured from an uncommitted file exists only in the cloud and in
+> state. If the resource is later destroyed — including by routine
+> session teardown — the configuration is lost with it. Commit before
+> applying.
