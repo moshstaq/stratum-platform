@@ -343,8 +343,12 @@ system:serviceaccount:stratum-workloads:stratum-orders
 
 If missing, update via Terraform:
 
+**Prerequisite:** NAT Gateway must be enabled. Step 4 restarts pods,
+which pulls images from ECR. Verify with:
+`aws ec2 describe-nat-gateways --filter "Name=vpc-id,Values=vpc-0ac88fd62d76f8714" --query "NatGateways[?State=='available'].NatGatewayId" --output text`
+
 ```bash
-cd aws-landing-zone/platform/eks
+../../../stratum-platform/terraform/aws/eks
 terraform apply
 ```
 
@@ -483,7 +487,7 @@ echo 'nat_gateway_enabled = true' > terraform.tfvars
 terraform apply
 
 # Recreate EKS cluster
-cd ../eks
+../../../stratum-platform/terraform/aws/eks
 terraform apply
 ```
 
@@ -556,7 +560,7 @@ Wait for apply — NAT Gateway takes 1-2 minutes.
 **Step 2 — Restore EKS**
 
 ```bash
-cd ../eks
+../../../stratum-platform/terraform/aws/eks
 terraform apply
 ```
 
